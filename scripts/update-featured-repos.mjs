@@ -112,6 +112,26 @@ const IM = imageMagick();
 // Rendered at 2x the on-card 328x164 box for crisp display.
 const POSTER_W = 656;
 const POSTER_H = 328;
+// Animated gifs become a CSS flipbook: up to this many frames sampled
+// evenly across the animation, embedded as JPEGs and cycled with
+// keyframes (a data-URI gif inside an SVG <image> renders frozen, but
+// CSS animation inside GitHub-served SVGs works).
+const MAX_FLIP_FRAMES = 16;
+
+const resizeArgs = [
+  "-resize", `${POSTER_W}x${POSTER_H}^`,
+  "-gravity", "center",
+  "-extent", `${POSTER_W}x${POSTER_H}`,
+  "-strip",
+];
+
+function imIdentify(tmp, format) {
+  return execFileSync(
+    IM === "magick" ? "magick" : "identify",
+    IM === "magick" ? ["identify", "-format", format, tmp] : ["-format", format, tmp],
+    { stdio: "pipe" },
+  ).toString();
+}
 
 async function heroImageData(r) {
   const url = await heroImageUrl(r);
@@ -122,49 +142,56 @@ async function heroImageData(r) {
 
   if (IM) {
     const tmp = path.join(os.tmpdir(), `hero-${r.name}`);
+    const frameDir = fs.mkdtempSync(path.join(os.tmpdir(), "frames-"));
     fs.writeFileSync(tmp, bytes);
     try {
-      // Pick a mid-animation frame so gif posters show real content.
-      // GIF frames are stored as partial patches over the previous
-      // frame, so frames 0..N must be coalesced (composited) before
-      // taking frame N. Cover-crop to the card's image box and strip
-      // metadata so the output is byte-stable across daily runs.
-      const frames = parseInt(
-        execFileSync(IM === "magick" ? "magick" : "identify",
-          IM === "magick" ? ["identify", "-format", "%n\n", tmp] : ["-format", "%n\n", tmp],
-          { stdio: "pipe" },
-        ).toString().trim().split("\n")[0],
-        10,
-      );
-      const frame = Number.isFinite(frames) && frames > 1 ? Math.floor(frames / 2) : 0;
-      const input =
-        frame > 0
-          ? [`${tmp}[0-${frame}]`, "-coalesce", "-delete", `0-${frame - 1}`]
-          : [`${tmp}[0]`];
+      const frameCount = parseInt(imIdentify(tmp, "%n\n").trim().split("\n")[0], 10);
+
+      if (mime === "image/gif" && Number.isFinite(frameCount) && frameCount > 1) {
+        // Real animation duration from per-frame delays (centiseconds).
+        const delays = imIdentify(tmp, "%T\n")
+          .trim().split("\n").map((d) => parseInt(d, 10) || 0);
+        let cycleSec = delays.reduce((a, b) => a + b, 0) / 100;
+        if (!(cycleSec > 0)) cycleSec = frameCount * 0.06;
+
+        // Coalesce composites the delta-patch frames into full images.
+        execFileSync(
+          IM,
+          [tmp, "-coalesce", ...resizeArgs, "-quality", "80", path.join(frameDir, "f-%04d.jpg")],
+          { stdio: "pipe", maxBuffer: 64 * 1024 * 1024 },
+        );
+        const all = fs.readdirSync(frameDir).sort();
+        const n = Math.min(MAX_FLIP_FRAMES, all.length);
+        const picked = Array.from({ length: n }, (_, i) =>
+          all[Math.floor((i * all.length) / n)],
+        );
+        const frames = picked.map((f) =>
+          fs.readFileSync(path.join(frameDir, f)).toString("base64"),
+        );
+        console.log(
+          `flipbook for ${r.name}: ${n}/${all.length} frames, ${cycleSec.toFixed(1)}s cycle, via ${IM}`,
+        );
+        return { kind: "anim", mime: "image/jpeg", frames, cycleSec };
+      }
+
       const poster = execFileSync(
         IM,
-        [
-          ...input,
-          "-resize", `${POSTER_W}x${POSTER_H}^`,
-          "-gravity", "center",
-          "-extent", `${POSTER_W}x${POSTER_H}`,
-          "-strip",
-          "png:-",
-        ],
+        [`${tmp}[0]`, ...resizeArgs, "png:-"],
         { stdio: "pipe", maxBuffer: 64 * 1024 * 1024 },
       );
-      console.log(`poster for ${r.name}: frame ${frame} via ${IM}`);
-      return { mime: "image/png", base64: poster.toString("base64") };
+      console.log(`poster for ${r.name}: via ${IM}`);
+      return { kind: "static", mime: "image/png", base64: poster.toString("base64") };
     } catch (e) {
       console.error(`poster extraction failed for ${r.name}: ${e.message}`);
     } finally {
       fs.rmSync(tmp, { force: true });
+      fs.rmSync(frameDir, { recursive: true, force: true });
     }
   } else {
     console.log(`imagemagick unavailable; embedding raw image for ${r.name}`);
   }
 
-  return { mime, base64: bytes.toString("base64") };
+  return { kind: "static", mime, base64: bytes.toString("base64") };
 }
 
 // ---------------------------------------------------------------------------
@@ -197,25 +224,70 @@ const LANG_COLORS = {
 const STAR_PATH =
   "M8 .25a.75.75 0 0 1 .673.418l1.882 3.815 4.21.612a.75.75 0 0 1 .416 1.279l-3.046 2.97.719 4.192a.751.751 0 0 1-1.088.791L8 12.347l-3.766 1.98a.75.75 0 0 1-1.088-.79l.72-4.194L.818 6.374a.75.75 0 0 1 .416-1.28l4.21-.611L7.327.668A.75.75 0 0 1 8 .25Z";
 
+function fmtPct(n) {
+  return n.toFixed(3).replace(/\.?0+$/, "");
+}
+
+// Flipbook CSS: frame i is fully visible for its 1/F share of the
+// cycle and hidden otherwise, with explicit 0% stops and near-instant
+// (0.01%) snaps between stops — without a 0% stop browsers would tween
+// opacity across the whole waiting period.
+function flipbookCss(frameCount, cycleSec) {
+  const EPS = 0.01;
+  let css = `.gf{opacity:0;animation:none ${cycleSec}s linear infinite}`;
+  for (let i = 0; i < frameCount; i++) {
+    const a = (i / frameCount) * 100;
+    const b = ((i + 1) / frameCount) * 100;
+    let kf;
+    if (i === 0) {
+      kf = `0%,${fmtPct(b)}%{opacity:1}${fmtPct(b + EPS)}%,100%{opacity:0}`;
+    } else if (i === frameCount - 1) {
+      kf = `0%,${fmtPct(a - EPS)}%{opacity:0}${fmtPct(a)}%,100%{opacity:1}`;
+    } else {
+      kf = `0%,${fmtPct(a - EPS)}%{opacity:0}${fmtPct(a)}%,${fmtPct(b)}%{opacity:1}${fmtPct(b + EPS)}%,100%{opacity:0}`;
+    }
+    css += `@keyframes g${i}{${kf}}.gf.g${i}{animation-name:g${i}}`;
+  }
+  return css;
+}
+
 function svgCard(r, image) {
   const W = 846;
-  const H = 196;
+  const H = 212;
+  const IMG_Y = (H - 164) / 2;
+  const META_BASELINE = H - 27;
   const FONT = "Cambria, Georgia, 'Times New Roman', serif";
   const langColor = LANG_COLORS[r.language] ?? "#8b949e";
   const stars = r.stargazers_count;
 
-  const imagePart = image
-    ? [
-        `  <clipPath id="hero"><rect x="502" y="16" width="328" height="164" rx="6"/></clipPath>`,
-        `  <image x="502" y="16" width="328" height="164" preserveAspectRatio="xMidYMid slice" clip-path="url(#hero)" href="data:${image.mime};base64,${image.base64}"/>`,
-        `  <rect class="frame" x="502.5" y="16.5" width="327" height="163" rx="6"/>`,
-      ].join("\n")
-    : "";
+  let imagePart = "";
+  let flipCss = "";
+  if (image) {
+    const box = `x="502" y="${IMG_Y}" width="328" height="164"`;
+    const clip = `  <clipPath id="hero"><rect ${box} rx="6"/></clipPath>`;
+    const frameRect = `  <rect class="frame" x="502.5" y="${IMG_Y + 0.5}" width="327" height="163" rx="6"/>`;
+    if (image.kind === "anim") {
+      flipCss = flipbookCss(image.frames.length, image.cycleSec);
+      const layers = image.frames
+        .map(
+          (b64, i) =>
+            `    <image class="gf g${i}" ${box} preserveAspectRatio="xMidYMid slice" href="data:${image.mime};base64,${b64}"/>`,
+        )
+        .join("\n");
+      imagePart = [clip, `  <g clip-path="url(#hero)">`, layers, `  </g>`, frameRect].join("\n");
+    } else {
+      imagePart = [
+        clip,
+        `  <image ${box} preserveAspectRatio="xMidYMid slice" clip-path="url(#hero)" href="data:${image.mime};base64,${image.base64}"/>`,
+        frameRect,
+      ].join("\n");
+    }
+  }
 
   const langPart = r.language
     ? [
-        `  <circle cx="122" cy="161" r="6" fill="${langColor}"/>`,
-        `  <text class="meta" x="134" y="166">${esc(r.language)}</text>`,
+        `  <circle cx="122" cy="${META_BASELINE - 5}" r="6" fill="${langColor}"/>`,
+        `  <text class="meta" x="134" y="${META_BASELINE}">${esc(r.language)}</text>`,
       ].join("\n")
     : "";
 
@@ -225,7 +297,7 @@ function svgCard(r, image) {
     .card { fill: #ffffff; stroke: #d1d9e0; }
     .frame { fill: none; stroke: #d1d9e0; }
     .name { fill: #0969da; font-size: 22px; font-weight: 700; }
-    .desc { font-family: ${FONT}; font-size: 15px; line-height: 1.5; color: #59636e; margin: 0; overflow: hidden; max-height: 84px; }
+    .desc { font-family: ${FONT}; font-size: 15px; line-height: 1.5; color: #59636e; margin: 0; overflow: hidden; max-height: 90px; }
     .meta { fill: #59636e; font-size: 14px; }
     .star { fill: #59636e; }
     @media (prefers-color-scheme: dark) {
@@ -236,14 +308,15 @@ function svgCard(r, image) {
       .meta { fill: #9198a1; }
       .star { fill: #9198a1; }
     }
+    ${flipCss}
   </style>
   <rect class="card" x="0.5" y="0.5" width="${W - 1}" height="${H - 1}" rx="8"/>
   <text class="name" x="28" y="48">${esc(r.name)}</text>
-  <foreignObject x="28" y="64" width="440" height="84">
+  <foreignObject x="28" y="64" width="440" height="94">
     <div xmlns="http://www.w3.org/1999/xhtml" class="desc">${esc(r.description ?? "")}</div>
   </foreignObject>
-  <g transform="translate(28, 149)"><path class="star" d="${STAR_PATH}"/></g>
-  <text class="meta" x="50" y="166">${stars}</text>
+  <g transform="translate(28, ${META_BASELINE - 17})"><path class="star" d="${STAR_PATH}"/></g>
+  <text class="meta" x="50" y="${META_BASELINE}">${stars}</text>
 ${langPart}
 ${imagePart}
 </svg>
