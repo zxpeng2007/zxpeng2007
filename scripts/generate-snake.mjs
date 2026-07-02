@@ -82,44 +82,25 @@ function toSerpentinePath(cells) {
   return path;
 }
 
-// Classic snake growth: eating a cell of value V means the tail won't
-// shrink for the next V moves, so length increases by V over time.
-// Both the body length and the pending-growth backlog are capped so a
-// burst of high-contribution days can't balloon into a multi-week-long
-// "hangover" tail dragging through unrelated, uneaten days afterward.
-const MAX_BODY_LENGTH = 12;
-
+// Each cell's own contribution level directly sets how many steps it
+// stays lit as part of the snake after being eaten (level 1 -> 1 step,
+// level 4 -> 4 steps), independent of every other cell. There's no
+// shared body/backlog state to carry over between days, so a run of
+// high-contribution days can never snowball into a long hangover tail:
+// at most ~4 overlapping cells can ever be lit at once (a run of
+// several consecutive max-level days), never the whole grid.
 function simulateGrowth(path) {
   const timing = new Map(); // cellIndex -> { enter, leave }
-  const body = []; // indices into `path`, head at the end
-  let pendingGrowth = 0;
+  let maxLeave = 0;
 
   path.forEach((cell, i) => {
-    body.push(i);
-    timing.set(i, { enter: i, leave: null });
-
-    if (pendingGrowth > 0 && body.length <= MAX_BODY_LENGTH) {
-      pendingGrowth -= 1;
-    } else if (body.length > 1) {
-      const tailIndex = body.shift();
-      timing.get(tailIndex).leave = i;
-      if (pendingGrowth > 0) pendingGrowth -= 1;
-    }
-
-    if (cell.level > 0) pendingGrowth += cell.level;
-    pendingGrowth = Math.min(pendingGrowth, MAX_BODY_LENGTH);
+    const duration = Math.max(1, cell.level);
+    const leave = i + duration;
+    timing.set(i, { enter: i, leave });
+    maxLeave = Math.max(maxLeave, leave);
   });
 
-  // Drain phase: keep popping the tail (no new head) until the body is
-  // empty, so the loop fully resets before restarting.
-  let step = path.length;
-  while (body.length > 0) {
-    const tailIndex = body.shift();
-    timing.get(tailIndex).leave = step;
-    step += 1;
-  }
-
-  return { timing, totalSteps: step };
+  return { timing, totalSteps: Math.max(path.length, maxLeave) };
 }
 
 function pct(step, totalSteps) {
