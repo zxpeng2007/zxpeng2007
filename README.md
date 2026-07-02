@@ -4,8 +4,6 @@
   <img alt="A snake eating my GitHub contribution graph" src="https://raw.githubusercontent.com/zxpeng2007/zxpeng2007/output/github-contribution-grid-snake.svg?v=2" />
 </picture>
 
-<br />
-
 <!-- FEATURED-REPOS:START -->
 <a href="https://github.com/zxpeng2007/Hand2Body"><img alt="Hand2Body" src="https://raw.githubusercontent.com/zxpeng2007/zxpeng2007/main/assets/featured-0.svg" width="846" /></a>
 

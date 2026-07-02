@@ -22,6 +22,20 @@ jobs:
             dist/github-contribution-grid-snake.svg
             dist/github-contribution-grid-snake-dark.svg?palette=github-dark
 
+      # Equalize the gaps around the level "progress bar": raise it to
+      # 28px below the grid (grid bottom y=110, bar y=138), and pad the
+      # canvas 12px below the bar so bar-to-repo-cards also totals 28px
+      # once GitHub's fixed 16px paragraph margin is added. sudo because
+      # the docker action writes dist/ as root. Loud grep so a future
+      # snk layout change fails the job instead of silently skipping.
+      - name: equalize progress bar gaps
+        run: |
+          for f in dist/github-contribution-grid-snake.svg dist/github-contribution-grid-snake-dark.svg; do
+            sudo sed -i 's/y="144"/y="138"/g; s/viewBox="-16 -32 880 192" width="880" height="192"/viewBox="-16 -32 880 194" width="880" height="194"/' "$f"
+            grep -q 'y="138"' "$f"
+            grep -q 'height="194"' "$f"
+          done
+
       - name: push snake artifact to the output branch
         uses: crazy-max/ghaction-github-pages@v4
         with:
