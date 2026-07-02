@@ -14,13 +14,14 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     steps:
-      - uses: Platane/snk@v3
-        id: snake-gif
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
         with:
-          github_user_name: ${{ github.repository_owner }}
-          outputs: |
-            dist/github-contribution-grid-snake.svg
-            dist/github-contribution-grid-snake-dark.svg?palette=github-dark
+          node-version: 24
+
+      - name: generate growing-snake animation
+        run: node scripts/generate-snake.mjs ${{ github.repository_owner }} dist
 
       - name: push snake artifact to the output branch
         uses: crazy-max/ghaction-github-pages@v4
