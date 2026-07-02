@@ -124,9 +124,11 @@ async function heroImageData(r) {
     const tmp = path.join(os.tmpdir(), `hero-${r.name}`);
     fs.writeFileSync(tmp, bytes);
     try {
-      // Pick a mid-animation frame so gif posters show real content,
-      // cover-crop to the card's image box, strip metadata so the
-      // output is byte-stable across daily runs.
+      // Pick a mid-animation frame so gif posters show real content.
+      // GIF frames are stored as partial patches over the previous
+      // frame, so frames 0..N must be coalesced (composited) before
+      // taking frame N. Cover-crop to the card's image box and strip
+      // metadata so the output is byte-stable across daily runs.
       const frames = parseInt(
         execFileSync(IM === "magick" ? "magick" : "identify",
           IM === "magick" ? ["identify", "-format", "%n\n", tmp] : ["-format", "%n\n", tmp],
@@ -135,10 +137,14 @@ async function heroImageData(r) {
         10,
       );
       const frame = Number.isFinite(frames) && frames > 1 ? Math.floor(frames / 2) : 0;
+      const input =
+        frame > 0
+          ? [`${tmp}[0-${frame}]`, "-coalesce", "-delete", `0-${frame - 1}`]
+          : [`${tmp}[0]`];
       const poster = execFileSync(
         IM,
         [
-          `${tmp}[${frame}]`,
+          ...input,
           "-resize", `${POSTER_W}x${POSTER_H}^`,
           "-gravity", "center",
           "-extent", `${POSTER_W}x${POSTER_H}`,
@@ -147,12 +153,15 @@ async function heroImageData(r) {
         ],
         { stdio: "pipe", maxBuffer: 64 * 1024 * 1024 },
       );
+      console.log(`poster for ${r.name}: frame ${frame} via ${IM}`);
       return { mime: "image/png", base64: poster.toString("base64") };
     } catch (e) {
       console.error(`poster extraction failed for ${r.name}: ${e.message}`);
     } finally {
       fs.rmSync(tmp, { force: true });
     }
+  } else {
+    console.log(`imagemagick unavailable; embedding raw image for ${r.name}`);
   }
 
   return { mime, base64: bytes.toString("base64") };

@@ -41,6 +41,9 @@ jobs:
         with:
           node-version: 24
 
+      - name: install imagemagick for poster extraction
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends imagemagick
+
       - name: regenerate featured repositories section
         run: node scripts/update-featured-repos.mjs ${{ github.repository_owner }}
         env:
