@@ -84,6 +84,11 @@ function toSerpentinePath(cells) {
 
 // Classic snake growth: eating a cell of value V means the tail won't
 // shrink for the next V moves, so length increases by V over time.
+// Both the body length and the pending-growth backlog are capped so a
+// burst of high-contribution days can't balloon into a multi-week-long
+// "hangover" tail dragging through unrelated, uneaten days afterward.
+const MAX_BODY_LENGTH = 12;
+
 function simulateGrowth(path) {
   const timing = new Map(); // cellIndex -> { enter, leave }
   const body = []; // indices into `path`, head at the end
@@ -93,14 +98,16 @@ function simulateGrowth(path) {
     body.push(i);
     timing.set(i, { enter: i, leave: null });
 
-    if (pendingGrowth > 0) {
+    if (pendingGrowth > 0 && body.length <= MAX_BODY_LENGTH) {
       pendingGrowth -= 1;
     } else if (body.length > 1) {
       const tailIndex = body.shift();
       timing.get(tailIndex).leave = i;
+      if (pendingGrowth > 0) pendingGrowth -= 1;
     }
 
     if (cell.level > 0) pendingGrowth += cell.level;
+    pendingGrowth = Math.min(pendingGrowth, MAX_BODY_LENGTH);
   });
 
   // Drain phase: keep popping the tail (no new head) until the body is
