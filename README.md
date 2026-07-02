@@ -4,24 +4,29 @@
   <img alt="A snake eating my GitHub contribution graph" src="https://raw.githubusercontent.com/zxpeng2007/zxpeng2007/output/github-contribution-grid-snake.svg?v=2" />
 </picture>
 
-### Featured Repositories
+<!-- FEATURED-REPOS:START -->
+<a href="https://github.com/zxpeng2007/Hand2Body"><img align="right" alt="Hand2Body demo" src="https://raw.githubusercontent.com/zxpeng2007/Hand2Body/main/docs/img/pingpong_12d.gif" width="340" /></a>
 
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <h4><a href="https://github.com/zxpeng2007/Hand2Body">Hand2Body</a></h4>
-      <p>Generate whole-body SMPL motion from sparse wrist tracking (1 or 2 wrists) — a general, real-time causal sparse-to-full-body model. Instantiated for table-tennis (12D) and bimanual manipulation (24D).</p>
-      <a href="https://github.com/zxpeng2007/Hand2Body/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/zxpeng2007/Hand2Body?style=flat-square" /></a>
-      <img alt="Top language" src="https://img.shields.io/github/languages/top/zxpeng2007/Hand2Body?style=flat-square&color=3572A5" />
-    </td>
-    <td width="50%" valign="top">
-      <h4><a href="https://github.com/zxpeng2007/rally3d">rally3d</a></h4>
-      <p>3D table-tennis data from broadcast video: synchronized ball trajectories, player poses, and table/camera geometry at dataset scale.</p>
-      <a href="https://github.com/zxpeng2007/rally3d/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/zxpeng2007/rally3d?style=flat-square" /></a>
-      <img alt="Top language" src="https://img.shields.io/github/languages/top/zxpeng2007/rally3d?style=flat-square&color=3572A5" />
-    </td>
-  </tr>
-</table>
+#### [Hand2Body](https://github.com/zxpeng2007/Hand2Body)
+
+Generate whole-body SMPL motion from sparse wrist tracking (1 or 2 wrists) — a general, real-time causal sparse-to-full-body model. Instantiated for table-tennis (12D) and bimanual manipulation (24D).
+
+<a href="https://github.com/zxpeng2007/Hand2Body/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/zxpeng2007/Hand2Body?style=flat-square" /></a>
+<img alt="Top language" src="https://img.shields.io/github/languages/top/zxpeng2007/Hand2Body?style=flat-square" />
+
+<br clear="right" />
+
+<a href="https://github.com/zxpeng2007/rally3d"><img align="right" alt="rally3d demo" src="https://raw.githubusercontent.com/zxpeng2007/rally3d/main/data/dataset/samples/r0009_tracking_overlay.png" width="340" /></a>
+
+#### [rally3d](https://github.com/zxpeng2007/rally3d)
+
+3D table-tennis data from broadcast video: synchronized ball trajectories, player poses, and table/camera geometry at dataset scale.
+
+<a href="https://github.com/zxpeng2007/rally3d/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/zxpeng2007/rally3d?style=flat-square" /></a>
+<img alt="Top language" src="https://img.shields.io/github/languages/top/zxpeng2007/rally3d?style=flat-square" />
+
+<br clear="right" />
+<!-- FEATURED-REPOS:END -->
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://streak-stats.demolab.com/?user=zxpeng2007&theme=dark&hide_border=true" />
