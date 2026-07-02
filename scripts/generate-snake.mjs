@@ -83,18 +83,22 @@ function toSerpentinePath(cells) {
 }
 
 // Each cell's own contribution level directly sets how many steps it
-// stays lit as part of the snake after being eaten (level 1 -> 1 step,
-// level 4 -> 4 steps), independent of every other cell. There's no
-// shared body/backlog state to carry over between days, so a run of
-// high-contribution days can never snowball into a long hangover tail:
-// at most ~4 overlapping cells can ever be lit at once (a run of
-// several consecutive max-level days), never the whole grid.
+// stays lit as part of the snake after being eaten, independent of
+// every other cell: BODY_BASE steps for an empty day, plus
+// GROWTH_PER_LEVEL more per contribution level (so 2/4/6/8/10 steps
+// for levels 0-4). There's no shared body/backlog state carried over
+// between days, so a run of high-contribution days can never snowball
+// into a long hangover tail: the body can never exceed the max
+// duration (10 cells), never the whole grid.
+const BODY_BASE = 2;
+const GROWTH_PER_LEVEL = 2;
+
 function simulateGrowth(path) {
   const timing = new Map(); // cellIndex -> { enter, leave }
   let maxLeave = 0;
 
   path.forEach((cell, i) => {
-    const duration = Math.max(1, cell.level);
+    const duration = BODY_BASE + cell.level * GROWTH_PER_LEVEL;
     const leave = i + duration;
     timing.set(i, { enter: i, leave });
     maxLeave = Math.max(maxLeave, leave);
@@ -103,9 +107,17 @@ function simulateGrowth(path) {
   return { timing, totalSteps: Math.max(path.length, maxLeave) };
 }
 
-function pct(step, totalSteps) {
-  return Math.min(100, (step / totalSteps) * 100).toFixed(2);
+function fmtPct(n) {
+  return n.toFixed(3).replace(/\.?0+$/, "");
 }
+
+// Color changes must be near-instant snaps, not slow blends. CSS
+// interpolates fill linearly between keyframe stops, so every hold ends
+// with a stop and the next color starts EPS_PCT later. Critically, the
+// base color must be pinned at 0% — without an explicit 0% stop the
+// browser tweens from the base fill toward the snake color across the
+// whole run-up, tinting the entire grid purple at once.
+const EPS_PCT = 0.01;
 
 function buildSvg(cells, path, timing, totalSteps, palette) {
   const numWeeks = Math.max(...cells.map((c) => c.x)) + 1;
@@ -129,15 +141,17 @@ function buildSvg(cells, path, timing, totalSteps, palette) {
   path.forEach((cell, i) => {
     const { enter, leave } = timing.get(i);
     const cls = `k${i}`;
-    const enterPct = pct(enter, totalSteps);
-    const leavePct = pct(leave, totalSteps);
-    const leaveEndPct = pct(Math.min(leave + 1, totalSteps), totalSteps);
+    const enterP = (enter / totalSteps) * 100;
+    const leaveP = Math.min(100, (leave / totalSteps) * 100);
+    const preP = enterP - EPS_PCT;
+    const postP = leaveP + EPS_PCT;
 
-    style +=
-      `@keyframes ${cls}{` +
-      `${enterPct}%,${leavePct}%{fill:var(--cs)}` +
-      `${leaveEndPct}%,100%{fill:var(--ce)}` +
-      `}`;
+    let frames = "";
+    if (preP > 0) frames += `0%,${fmtPct(preP)}%{fill:${levelVar(cell.level)}}`;
+    frames += `${fmtPct(enterP)}%,${fmtPct(leaveP)}%{fill:var(--cs)}`;
+    if (postP < 100) frames += `${fmtPct(postP)}%,100%{fill:var(--ce)}`;
+
+    style += `@keyframes ${cls}{${frames}}`;
     style += `.c.${cls}{fill:${levelVar(cell.level)};animation-name:${cls}}`;
 
     const x = (PITCH - CELL) + cell.x * PITCH;
