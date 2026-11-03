@@ -5,9 +5,9 @@
 </picture>
 
 <!-- FEATURED-REPOS:START -->
-<a href="https://github.com/zxpeng2007/Hand2Body"><img alt="Hand2Body" src="https://raw.githubusercontent.com/zxpeng2007/zxpeng2007/main/assets/featured-0.svg" width="846" /></a>
+<a href="https://github.com/zxpeng2007/omnisens"><img alt="omnisens" src="https://raw.githubusercontent.com/zxpeng2007/zxpeng2007/main/assets/featured-0.svg" width="846" /></a>
 
-<a href="https://github.com/zxpeng2007/omnisens"><img alt="omnisens" src="https://raw.githubusercontent.com/zxpeng2007/zxpeng2007/main/assets/featured-1.svg" width="846" /></a>
+<a href="https://github.com/zxpeng2007/Hand2Body"><img alt="Hand2Body" src="https://raw.githubusercontent.com/zxpeng2007/zxpeng2007/main/assets/featured-1.svg" width="846" /></a>
 <!-- FEATURED-REPOS:END -->
 
 <picture>
